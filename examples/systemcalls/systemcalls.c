@@ -16,8 +16,14 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int system_ret;
+	bool ret = true;
+	system_ret = system(cmd);
+	if (system_ret == -1)
+	{
+		ret = false;
+	}
+    return ret;
 }
 
 /**
@@ -58,10 +64,32 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-
+	bool ret = true;
+	pid_t child_pid = fork();
+	if(child_pid > 0) // fork() excuted successfully and we are in the parent process
+	{
+		int status;
+		pid_t wait_ret = waitpid(child_pid, &status, WNOHANG);
+		if(wait_ret == -1)
+		{
+			ret = false;
+		}
+	}
+	else if (child_pid == 0) // fork excuted successfully and we are in the child process
+	{
+		int exec_ret = execv(command, (command + 1));
+		if(exec_ret == -1) // execv returned error
+		{
+			ret = false;
+		}
+	}
+	else // fork returned error [-1]
+	{
+		ret = false;
+	}
     va_end(args);
 
-    return true;
+    return ret;
 }
 
 /**
@@ -92,8 +120,35 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+	bool ret = true;
+	int fd = open("outputfile", O_WONLY|O_TRUNC|O_CREAT);
+	if(fd < 0) {perror("open");}
+	pid_t child_pid = fork();
+	if(child_pid > 0) // fork() excuted successfully and we are in the parent process
+	{
+		int status;
+		pid_t wait_ret = waitpid(child_pid, &status, WNOHANG);
+		if(wait_ret == -1)
+		{
+			ret = false;
+		}
+		close(fd);
+	}
+	else if (child_pid == 0) // fork excuted successfully and we are in the child process
+	{
+		if(dup2(fd, 1) < 0) { perror("dup2");}
+		close(fd);
+		int exec_ret = execv(command, (command + 1));
+		if(exec_ret == -1) // execv returned error
+		{
+			ret = false;
+		}
+	}
+	else // fork returned error [-1]
+	{
+		ret = false;
+	}
     va_end(args);
 
-    return true;
+    return ret;
 }
